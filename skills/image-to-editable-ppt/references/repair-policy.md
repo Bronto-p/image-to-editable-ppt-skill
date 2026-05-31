@@ -20,25 +20,33 @@ repair item 必须包含：
 - `wrong_text_wrapping`
 - `missing_asset`
 - `bad_asset_split`
-- `bad_clean_base`
+- `bad_generated_background`
+- `primary_text_left_in_background`
+- `bad_generated_picture_asset`
+- `bad_art_text_asset`
 - `bad_asset_provenance`
 - `layout_drift`
 - `broken_pptx`
 - `notes_mismatch`
 - `imagegen_blocked`
+- `svg_fallback_used`
+- `native_shape_complex_visual`
 
 ## 返工范围
 
 优先顺序：
 
 1. 修改一个 text box。
-2. 修改一个 coordinate 或 shape。
-3. 重新切分一个 asset sheet。
-4. 重新生成一个 asset sheet。
-5. 重新生成一个 clean base。
-6. 重派整页 page worker。
+2. 重新编辑 generated clean background 的局部问题。
+3. 重新生成一个 picture/art-text/visual asset。
+4. 修改一个 coordinate 或简单 shape。
+5. 重新切分一个 asset sheet。
+6. 重新生成一个 asset sheet。
+7. 重新生成整张 generated clean background。
+8. 重派整页 page worker。
 
 不要为了一个文本框重建整页。
+不要为了 imagegen 失败降级到 SVG、Pillow、HTML/canvas 或粗糙 native shape。
 
 ## Repair worker
 
@@ -62,5 +70,7 @@ repair worker 只能写当前 page dir。
 - 多次 repair 后仍没有可执行下一步。
 - 输入格式无法归一化。
 - 脚本无法构建有效 PPTX。
+- 必需 generated background 或 generated visual asset 无法生成。
+- 只能通过 SVG/native shape 伪造复杂视觉才能继续。
 
 不设计低保真降级模式。blocker 不是低保真完成。

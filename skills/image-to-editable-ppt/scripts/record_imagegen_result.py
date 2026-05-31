@@ -13,6 +13,8 @@ def main():
     parser.add_argument("--source-image", required=True)
     parser.add_argument("--dest", required=True, help="Destination path relative to page_dir")
     parser.add_argument("--role", default="asset", help="clean_base, asset_sheet, repair_asset, etc.")
+    parser.add_argument("--source-type", default="imagegen")
+    parser.add_argument("--model")
     parser.add_argument("--prompt-file")
     parser.add_argument("--note")
     args = parser.parse_args()
@@ -41,6 +43,8 @@ def main():
     existing.update(
         {
             "role": args.role,
+            "source_type": args.source_type,
+            "model": args.model,
             "status": "recorded",
             "source_image": str(source),
             "output": dest.relative_to(page_dir).as_posix(),

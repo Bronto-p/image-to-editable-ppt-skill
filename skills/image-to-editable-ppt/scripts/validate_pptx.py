@@ -19,6 +19,12 @@ NS = {
 
 ALLOWED_SOURCE_TYPES = {
     "imagegen",
+    "imagegen-clean-background",
+    "imagegen-picture-reconstruction",
+    "imagegen-art-text",
+    "imagegen-visual-asset",
+    "imagegen-asset-sheet",
+    "imagegen-repair",
     "user-provided",
     "user-approved-rasterization",
     "source-derived-rasterization",
@@ -28,7 +34,11 @@ REQUIRED_QUALITY_CHECKS = {
     "visual_inventory_matched",
     "background_strategy_checked",
     "shape_corner_geometry_checked",
+    "imagegen_visual_layers_recorded",
+    "generated_background_checked",
+    "primary_text_removed_from_background",
 }
+IMAGEGEN_BACKGROUND_SOURCE_TYPES = {"imagegen", "imagegen-clean-background", "imagegen-repair"}
 
 
 def read_manifest(path):
@@ -52,6 +62,17 @@ def is_full_slide_image(item, slide):
     )
 
 
+def provenance_for_image(provenance_by_path, image_path):
+    key = Path(image_path or "").as_posix()
+    if key in provenance_by_path:
+        return provenance_by_path[key]
+    name = Path(key).name
+    for stored_path, entry in provenance_by_path.items():
+        if Path(stored_path).name == name:
+            return entry
+    return {}
+
+
 def page_contract_violations(manifest):
     violations = []
     slide = manifest.get("slide", {})
@@ -64,8 +85,16 @@ def page_contract_violations(manifest):
     }
     for image in images:
         path = Path(image.get("path", "")).as_posix()
-        provenance = provenance_by_path.get(path, {})
+        provenance = provenance_for_image(provenance_by_path, path)
         source_type = provenance.get("source_type")
+        if Path(path).suffix.lower() == ".svg":
+            violations.append(
+                {
+                    "field": "images",
+                    "path": path,
+                    "reason": "SVG assets are not allowed for imagegen-first visual reconstruction",
+                }
+            )
         if is_full_slide_image(image, slide) and Path(path).name == "source.png" and text_boxes:
             violations.append(
                 {
@@ -74,16 +103,12 @@ def page_contract_violations(manifest):
                     "reason": "full-slide source.png background with editable text overlays causes baked-text overlap",
                 }
             )
-        if (
-            is_full_slide_image(image, slide)
-            and source_type in {"user-provided", "user-approved-rasterization", "source-derived-rasterization"}
-            and text_boxes
-        ):
+        if is_full_slide_image(image, slide) and text_boxes and source_type not in IMAGEGEN_BACKGROUND_SOURCE_TYPES:
             violations.append(
                 {
                     "field": "asset_provenance",
                     "path": path,
-                    "reason": "full-slide raster background cannot be assembled with editable text",
+                    "reason": "full-slide background behind editable text must be an imagegen clean background, not a source/user raster",
                 }
             )
 
@@ -103,6 +128,32 @@ def source_region_size(entry):
 def quality_contract_violations(manifest):
     violations = []
 
+    layer_plan = manifest.get("visual_layer_plan")
+    if not isinstance(layer_plan, dict):
+        violations.append(
+            {
+                "field": "visual_layer_plan",
+                "reason": "page manifest must include an imagegen-first visual_layer_plan object",
+            }
+        )
+    else:
+        for key in (
+            "primary_text_to_rebuild",
+            "generated_background",
+            "generated_picture_assets",
+            "art_text_assets",
+            "native_text_boxes",
+            "minimal_native_shapes",
+            "background_decorative_text_policy",
+        ):
+            if key not in layer_plan:
+                violations.append(
+                    {
+                        "field": f"visual_layer_plan.{key}",
+                        "reason": "visual_layer_plan is missing a required layer bucket",
+                    }
+                )
+
     if "visual_inventory" not in manifest:
         violations.append(
             {
@@ -121,6 +172,15 @@ def quality_contract_violations(manifest):
                 "reason": "page manifest must record how the background was rebuilt or preserved",
             }
         )
+    elif isinstance(background_strategy, dict):
+        mode = str(background_strategy.get("mode", ""))
+        if mode and "imagegen" not in mode:
+            violations.append(
+                {
+                    "field": "background_strategy.mode",
+                    "reason": "background strategy should be imagegen-based for high-fidelity layered reconstruction",
+                }
+            )
 
     quality_checks = manifest.get("quality_checks")
     if not isinstance(quality_checks, dict):

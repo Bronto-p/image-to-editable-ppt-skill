@@ -6,6 +6,8 @@
 - 单页输入也必须分派给 page subagent。
 - 主 agent 不做页面重建。
 - page subagent 只写自己的 page 目录。
+- page subagent 必须先写 `visual_layer_plan`，再生成视觉层和 native text。
+- page subagent 默认用 `$imagegen` / GPT Image 2 生成 clean background、嵌入图片、艺术字、图标和复杂视觉资产。
 - page subagent 必须自己 build、preview、contact sheet、validate。
 - 子 agent 不可用时停止，不顺序执行。
 
@@ -34,8 +36,11 @@ page worker 不得：
 - 编辑其他 page 目录
 - 编辑 final PPTX
 - 用本地绘图代码替代 `$imagegen`
+- 用 SVG 替代 imagegen complex visual assets
+- 用 native shape 硬拼图标、艺术字、插画、纹理、复杂图表视觉
 - 手写 `imagegen-jobs.json` 完成状态
 - 把 source crop 当成默认视觉资产
+- 把原始整页 source image 当成 background 后叠 native text
 
 ## Page worker 输出
 
@@ -66,6 +71,8 @@ page_result.json
   "known_limits": []
 }
 ```
+
+`manifest.json` 必须包含 `visual_layer_plan`、`background_strategy`、`visual_inventory`、`quality_checks`。`quality_checks` 必须明确记录 imagegen 视觉层、generated background 和主文字去除检查。
 
 返回格式：
 

@@ -84,8 +84,8 @@ Owner：`prepare_deck_run.py`。
 不得包含：
 
 - page type 预判。
-- imagegen_required 预判。
 - object-level 决策。
+- imagegen_required 预判。
 
 ## `page_result.json`
 
@@ -112,6 +112,7 @@ Owner：page worker。
 
 - `slide`
 - `source`
+- `visual_layer_plan`
 - `text_inventory`
 - `visual_inventory`
 - `background_strategy`
@@ -122,6 +123,67 @@ Owner：page worker。
 - `asset_provenance`
 - page strategy / known limits
 
+### `visual_layer_plan`
+
+`visual_layer_plan` 是 imagegen-first 分层计划，必须在生成视觉层前确定。
+
+推荐结构：
+
+```json
+{
+  "strategy": "imagegen-first-layered-reconstruction",
+  "primary_text_to_rebuild": [
+    {
+      "id": "text_title",
+      "text": "Quarterly update",
+      "reason": "main title should remain editable",
+      "native_text_box": "tb_title"
+    }
+  ],
+  "generated_background": {
+    "asset_id": "bg_clean",
+    "path": "generated/clean_background.png",
+    "source_type": "imagegen-clean-background",
+    "remove": ["main title", "body copy", "chart value labels"],
+    "preserve": ["layout panels", "brand gradient", "decorative microtext texture"],
+    "background_decorative_text_policy": "Decorative microtext in the lower texture is kept because it is not user-editable primary content."
+  },
+  "generated_picture_assets": [
+    {
+      "asset_id": "pic_dashboard",
+      "description": "embedded dashboard screenshot with small labels",
+      "source_region_px": [900, 180, 420, 300],
+      "path": "assets/pic_dashboard.png",
+      "source_type": "imagegen-picture-reconstruction"
+    }
+  ],
+  "art_text_assets": [
+    {
+      "asset_id": "art_slogan",
+      "description": "neon handwritten slogan",
+      "path": "assets/art_slogan.png",
+      "source_type": "imagegen-art-text"
+    }
+  ],
+  "generated_visual_assets": [],
+  "native_text_boxes": [],
+  "minimal_native_shapes": [],
+  "background_decorative_text_policy": "Decorative microtext in the lower texture is kept because it is not user-editable primary content."
+}
+```
+
+### `background_strategy`
+
+`background_strategy` 至少说明：
+
+- mode：`imagegen-full-clean-background`、`imagegen-local-clean-background-repair`、`imagegen-generated-layout-background` 等。
+- source consistency：保留哪些构图、透视、物体、颜色、光照、容器、图片区域和细节。
+- removed foreground：哪些主文字、图片、艺术字、图标会被移除并重建。
+- preserved decorative text：哪些装饰小字/水印/纹理文字可以保留。
+- comparison note：preview 对照 source 后的背景一致性结论。
+
+### `quality_checks`
+
 `quality_checks` 至少包含：
 
 ```json
@@ -129,16 +191,72 @@ Owner：page worker。
   "font_size_calibrated": true,
   "visual_inventory_matched": true,
   "background_strategy_checked": true,
-  "shape_corner_geometry_checked": true
+  "shape_corner_geometry_checked": true,
+  "imagegen_visual_layers_recorded": true,
+  "generated_background_checked": true,
+  "primary_text_removed_from_background": true
 }
 ```
 
-`background_strategy` 至少说明：
+### `images`
 
-- mode：`native-or-script`、`source-preserving-local-repair`、`imagegen-full-clean-base` 等。
-- source consistency：保留哪些构图、透视、物体、颜色、光照和细节。
-- removed foreground：哪些前景会被移除并重建。
-- comparison note：preview 对照 source 后的背景一致性结论。
+`images` 可以包含 full-slide generated clean background，也可以包含独立 generated assets。
+
+Full-slide clean background 示例：
+
+```json
+{
+  "path": "generated/clean_background.png",
+  "box_px": [0, 0, 1920, 1080],
+  "z_index": 0,
+  "alt": "imagegen clean background without primary text"
+}
+```
+
+独立嵌入图片 asset 示例：
+
+```json
+{
+  "path": "assets/dashboard_panel.png",
+  "box_px": [980, 180, 520, 360],
+  "z_index": 30,
+  "alt": "generated dashboard panel"
+}
+```
+
+不要在 `images` 中引用 `.svg`。复杂视觉资产必须是 imagegen raster output。
+
+### `asset_provenance`
+
+允许的主要 `source_type`：
+
+- `imagegen`
+- `imagegen-clean-background`
+- `imagegen-picture-reconstruction`
+- `imagegen-art-text`
+- `imagegen-visual-asset`
+- `imagegen-asset-sheet`
+- `imagegen-repair`
+- `user-provided`
+- `user-approved-rasterization`
+- `source-derived-rasterization`
+
+source-derived raster 是例外，不是默认策略。它必须记录：
+
+```json
+{
+  "path": "assets/example.png",
+  "source": "source.png",
+  "source_type": "source-derived-rasterization",
+  "source_region_px": [100, 200, 60, 60],
+  "exception_reason": "User explicitly requested exact source crop for this non-text icon.",
+  "require_edge_safe_alpha": true
+}
+```
+
+它只允许用于无主文字的小型独立视觉对象，不能用于整页、整卡片、整图表、嵌入图片或文字区域，除非用户明确要求这种低编辑性结果。
+
+### Shapes
 
 `roundRect` shape 必须记录 `source_corner_radius_px`，可以额外记录 `corner_reason`。原图是直角矩形时必须使用 `rect`。
 
@@ -156,32 +274,24 @@ Owner：page worker。
 
 `corner_category` 可选值：`straight`、`small-radius`、`large-radius`、`pill`。`straight` 不应使用 `roundRect`。
 
-`source-derived-rasterization` 资产必须记录：
-
-```json
-{
-  "path": "assets/example.png",
-  "source": "source.png",
-  "source_type": "source-derived-rasterization",
-  "source_region_px": [100, 200, 60, 60],
-  "require_edge_safe_alpha": true,
-  "provenance_note": "Small non-text icon cropped to preserve source identity."
-}
-```
-
-`source_region_px` 使用 `[x, y, width, height]`。如果使用 `[left, top, right, bottom]`，字段名必须写成 `source_bbox_px`。
-
-`require_edge_safe_alpha` 是可选严格校验：仅当该资产应完整落在透明画布内时设置为 `true`；默认不因为可见像素贴边直接判失败。
-
-它只允许用于无可读文字的小型独立视觉对象，不能用于整页、整卡片、整图表或文字区域。
-
 ## `pages/page_NNN/imagegen-jobs.json`
 
 Owner：page-local imagegen 脚本。
 
-用途：记录 clean base、asset sheet、repair asset 的生成和处理过程。
+用途：记录 clean background、picture asset、art text asset、asset sheet、repair asset 的生成和处理过程。
 
 状态见 `state-machine.md`。
+
+每个 job 推荐记录：
+
+- intended layer
+- prompt file/hash
+- input image roles
+- selected output
+- copied output path
+- source type
+- sha256
+- model/tool when available
 
 ## `notes_manifest.json`
 

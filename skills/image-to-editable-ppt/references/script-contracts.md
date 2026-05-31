@@ -1,6 +1,6 @@
 # Script Contracts 第一版
 
-脚本只做确定性工作，不手工绘制复杂视觉资产。
+脚本只做确定性工作，不手工绘制复杂视觉资产，不把 SVG/native shape 当作 imagegen 的复杂视觉替代品。
 
 ## `image_to_editable_ppt_runtime.py`
 
@@ -57,7 +57,7 @@
 职责：
 
 - 复制 `$imagegen` 选中输出到 page 目录。
-- 写 source path、output path、hash、metadata。
+- 写 source path、output path、role/intended layer、source type、model/tool、hash、metadata。
 - 推进 imagegen job 到 `recorded`。
 
 ## `process_asset_sheet.py`
@@ -78,6 +78,7 @@
 - 从 page manifest 构建 page-level PPTX。
 - 从 deck manifest 构建 final PPTX。
 - 生成 preview。
+- 支持 full-slide imagegen clean background 加 native editable text 的分层结构。
 
 preview 只用于 QA，不是 PowerPoint/WPS 的精确排版引擎。它必须按 point-to-pixel 换算近似渲染文字，暴露字号过大、溢出和错位风险；page worker 不能把 preview 当成最终排版完全一致的证明。
 
@@ -89,6 +90,9 @@ preview 只用于 QA，不是 PowerPoint/WPS 的精确排版引擎。它必须�
 
 - 验证 page/deck PPTX。
 - 检查 relationship、media hash、text inventory、notes hash、full-slide raster 违规。
+- 允许 imagegen clean background 作为 full-slide bottom raster。
+- 拒绝原始 source.png 或 source-derived/user-provided full-slide screenshot 加 native text 的假可编辑模式。
+- 拒绝 `.svg` 作为复杂视觉 asset。
 
 ## `make_page_contact_sheet.py`
 

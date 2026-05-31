@@ -8,7 +8,8 @@
 
 - 主 agent 只做 orchestration。
 - page subagent 只做一个页面的重建。
-- `$imagegen` 是唯一正常视觉生成层。
+- `$imagegen` / GPT Image 2 是默认视觉生成层，负责 clean background、嵌入图片、艺术字和复杂视觉资产。
+- native PPT text 只负责需要后续编辑的主文字；native shape 只负责简单 primitive。
 - 确定性脚本负责目录、状态、记录、构建、验证和组装。
 - 共享状态只能由明确 owner 和脚本推进。
 
@@ -40,9 +41,9 @@
 page subagent 负责一个 `pages/page_NNN/` 目录：
 
 - 读取 `page_request.json` 和 `source.png`。
-- 分析页面文字、结构、背景和前景视觉对象。
-- 按页面决策树选择 native shape、text box、clean base、asset sheet 或独立资产。
-- 使用 `$imagegen` 生成/编辑需要的 bitmap。
+- 分析页面主文字、generated background、嵌入图片、艺术字、复杂视觉对象和简单结构。
+- 写 `visual_layer_plan`。
+- 使用 `$imagegen` 生成/编辑 clean background、picture assets、art text assets、visual assets 和 repair bitmap。
 - 用脚本记录 imagegen 结果。
 - 写 `manifest.json`。
 - 构建 `page.pptx`。
@@ -56,7 +57,10 @@ page subagent 不能编辑 deck-level 文件或其他 page 目录。
 
 `$imagegen` 负责所有视觉生成和编辑：
 
-- clean no-text background/base。
+- full-slide clean background。
+- 嵌入图片、截图、图表视觉、UI、含字图片重建。
+- 艺术字、手写字、复杂字体效果和贴纸字。
+- 图标、pictogram、徽章、复杂箭头、装饰对象。
 - foreground removal + background restoration。
 - 稀疏 chroma-key asset sheet。
 - targeted repair asset。
@@ -80,6 +84,7 @@ page subagent 不能编辑 deck-level 文件或其他 page 目录。
 
 - 手绘复杂视觉资产。
 - 用本地代码替代 `$imagegen`。
+- 用 SVG/native shape 伪造复杂视觉。
 - 伪造完成状态。
 
 ## Run 目录

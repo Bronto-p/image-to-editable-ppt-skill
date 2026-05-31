@@ -73,7 +73,17 @@ def main():
     parser.add_argument(
         "--source-type",
         default="imagegen",
-        choices=["imagegen", "user-provided", "user-approved-rasterization", "source-derived-rasterization"],
+        choices=[
+            "imagegen",
+            "imagegen-picture-reconstruction",
+            "imagegen-art-text",
+            "imagegen-visual-asset",
+            "imagegen-asset-sheet",
+            "imagegen-repair",
+            "user-provided",
+            "user-approved-rasterization",
+            "source-derived-rasterization",
+        ],
     )
     parser.add_argument("--provenance-note", default="Cropped asset visually inspected.")
     parser.add_argument("--approval-note")

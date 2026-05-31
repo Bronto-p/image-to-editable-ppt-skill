@@ -1,56 +1,126 @@
-# 页面决策树
+# 页面分层决策树
 
-## 1. 检查页面
+## 目标
 
-page worker 收到 `source.png` 后，先建立清单：
+页面重建采用 imagegen-first layered reconstruction：
 
-- 页面尺寸和类型。
-- 所有可读文字。
-- 结构对象：卡片、面板、表格、坐标轴、线条、流程框、图表框、分隔线。
-- 视觉对象：图标、pictogram、logo-like mark、照片、纹理、插画、手绘标记、贴纸、装饰线、徽章。
-- 背景是否被前景对象遮挡。
-- 每类文字的 source 字形高度、容器高度、行距和密度。
-- 每个矩形/卡片/表格外框的角形：直角、轻微圆角、明显圆角。
+1. 用 `$imagegen` / GPT Image 2 生成高保真视觉层。
+2. 用 native PowerPoint text box 覆盖需要后续编辑的主文字。
+3. 只在确定简单且不影响视觉保真的地方使用 native shape。
 
-## 2. 文字
+不要把复杂视觉拆成 SVG 或一堆 PPT primitive。这个 skill 的默认取舍是：视觉保真优先，主文字可编辑，复杂视觉由图片生成承担。
 
-所有可读文字默认成为原生 PPT text box。
+## 1. 建立 Visual Layer Plan
 
-不要用生成图承载可编辑文字。不要用隐藏文本、透明文本、1 pt 文本或 off-canvas 文本满足 text inventory。
+page worker 收到 `source.png` 后，先写 `visual_layer_plan`，至少包含：
 
-字号不要靠默认值猜测。先按 source 中的实际字形高度估算：
+- `primary_text_to_rebuild`: 需要成为 native text box 的标题、正文、普通标签、按钮文字、数据数字。
+- `generated_background`: full-slide clean background 的生成策略。
+- `generated_picture_assets`: 页面中的照片、截图、图表视觉、UI、证书、产品图、医学图、含字图片等独立资产。
+- `art_text_assets`: 艺术字、手写字、复杂字体效果、发光字、贴纸字、徽章字。
+- `generated_visual_assets`: 图标、pictogram、装饰符号、复杂箭头、手绘标记、纹理对象。
+- `native_text_boxes`: native 主文字对应关系。
+- `minimal_native_shapes`: 只包含简单 primitive。
+- `background_decorative_text_policy`: 哪些小字/水印/纹理文字作为背景装饰保留，为什么不会与 native text 重复。
 
-- 同一层级文字用同一组 font size，例如标题、副标题、表头、正文、标签、状态徽章。
-- 对中文密集版面，初稿宁可比估算小 5%-10%，不要偏大；过大的字会挤压布局并掩盖结构误差。
-- 字形高度接近容器高度时，font size 通常需要明显小于容器高度；给 PowerPoint/WPS 的 font metrics 留余量。
-- 构建 preview 后，逐类对比 source。如果标题、正文或标签比 source 更粗大、更拥挤或换行更多，先下调 font size 再继续。
+先计划，后生成。不要边看边画 SVG。
 
-manifest 必须通过 `quality_checks.font_size_calibrated=true` 明确记录已经做过字号校准。
+## 2. 主文字
 
-## 3. 结构对象
+主文字指用户后续大概率要编辑、且在 PPT 里应可选择的文字：
 
-只有基础 primitive 和简单结构对象可以使用原生 PPT shape：
+- 标题、副标题、正文段落。
+- 普通标签、按钮文字、表头、页内编号。
+- 图表中的主要数值和轴标签，如果用户可能需要改。
+- 业务语义明确的中文/英文短语。
 
-- 直线、虚线、折线。
-- 矩形、圆角矩形、圆形、椭圆。
-- 普通箭头和连接线。
-- 纯色卡片、面板、分隔线、边框。
-- 表格线、坐标轴、网格线。
-- 简单柱状图、进度条、状态色块。
-- 没有风格细节的基础流程框和容器。
+所有主文字默认成为原生 PPT text box。隐藏、透明、1 pt、off-canvas 或 metadata-only 文本不算可编辑文字。
 
-角形选择必须保守：
+主文字必须从 generated background 中移除。否则会出现背景一份、native text 一份的重影。
 
-- 先判断 source 角形类别：`straight`、`small-radius`、`large-radius`、`pill`。
-- `straight` 用 `rect`。
-- `small-radius`、`large-radius`、`pill` 用 `roundRect`，并估算 `source_corner_radius_px`。
-- 圆角半径是对象级属性，不是布尔开关。大面板的 8-12 px 轻微圆角不能被重建成 70 px 的大圆角。
-- 不确定时放大查看 source 角点；如果仍不确定，记录判断依据并偏向较小半径。
-- 每个 `roundRect` shape 必须记录 `source_corner_radius_px`，`corner_reason` 只作为补充说明，不能替代半径。
+字号不要靠默认值猜测：
 
-## 4. 前景视觉对象
+- 按 source 中实际字形高度、容器高度、行距和密度估算。
+- 同一层级文字用同一组 font size，例如标题、副标题、正文、标签、状态徽章。
+- 中文密集版面宁可比估算小 5%-10%，不要偏大。
+- 构建 preview 后对照 source。如果标题、正文或标签比 source 更粗大、更拥挤或换行更多，先下调 font size。
 
-以下对象默认用 `$imagegen` 重绘成独立资产：
+manifest 必须通过 `quality_checks.font_size_calibrated=true` 记录字号校准完成。
+
+## 3. Generated Clean Background
+
+默认生成一张 full-slide clean background，作为 PPT 最底层图片。
+
+clean background 应保留：
+
+- 原始画布比例、构图、网格和空间关系。
+- 背景色、渐变、纹理、照片/插画氛围、光照、材质。
+- 卡片、容器、面板、空图表框、表格网格、分隔线、阴影。
+- 不需要单独移动的背景装饰。
+- 作为背景氛围的小字、水印、伪屏幕纹理、装饰性微文本；前提是它们不是主文字，且不会被 native text 盖重复。
+
+clean background 应移除：
+
+- 所有将用 native text box 重建的标题、正文、标签、数字。
+- 将作为独立 imagegen asset 重建的艺术字、图标、贴纸、徽章、图片和图表视觉。
+- 任何会导致重影的前景对象。
+
+prompt 不能只写“remove text”。必须列出 preserve 和 remove 清单。复杂背景要把 source 当作 edit target 和强约束参考，保留同一页面身份，而不是生成同主题新页。
+
+manifest 中 `background_strategy` 至少记录：
+
+- `mode: "imagegen-full-clean-background"` 或局部 imagegen repair 模式。
+- `source_consistency_contract`: 要保留的构图、颜色、容器、图片区域、光照和风格。
+- `removed_primary_text`: 已移除的主文字类别。
+- `preserved_decorative_text`: 保留的装饰小字/水印/纹理说明。
+- `comparison_note`: preview 对照 source 后的结论。
+
+## 4. Generated Picture Assets
+
+页面里的照片、截图、图表视觉、UI 截图、证书、医学图、产品图、人物图、带字图片等，默认用 `$imagegen` 高保真重建为独立 raster asset。
+
+要求：
+
+- 保留源图内容、构图、文字、排版、颜色、比例、边框和风格。
+- 作为独立 asset 放在页面上，便于移动/替换/缩放。
+- 不要默认裁 source；source-derived raster 是例外，不是正常策略。
+- 如果 asset 内部有文字，prompt 要明确要求文字、数字、标点和排版与源图一致。
+- 如果该图片本身就是整页背景的一部分、且不需要独立移动，可以合入 clean background，但必须在 `visual_layer_plan` 说明。
+
+provenance 推荐：
+
+```json
+{
+  "path": "assets/chart_panel.png",
+  "source_type": "imagegen-picture-reconstruction",
+  "source": "source.png",
+  "source_region_px": [120, 220, 640, 360],
+  "imagegen_job_id": "imagegen_003",
+  "provenance_note": "Rebuilt the embedded chart panel with text and layout fidelity."
+}
+```
+
+## 5. Art Text Assets
+
+艺术字不是普通 editable text。
+
+以下默认生成透明 imagegen asset：
+
+- 手写字、毛笔字、签名字。
+- 发光字、金属字、3D 字、立体字。
+- 渐变描边字、阴影字、贴纸字、徽章字。
+- 字体身份很强、转成普通字体会明显失真的文字。
+
+要求：
+
+- 用 source 作为视觉参考。
+- 保持字形、颜色、描边、阴影、纹理、角度和位置。
+- 输出透明背景资产或可去底 asset sheet。
+- 不再叠同样 native text，除非用户明确要求艺术字也要可编辑并接受视觉下降。
+
+## 6. Generated Visual Assets
+
+以下对象默认用 `$imagegen` 生成/编辑：
 
 - 图标、pictogram、symbol、logo-like mark。
 - 徽章、贴纸、胶带、印章、角标。
@@ -58,58 +128,49 @@ manifest 必须通过 `quality_checks.font_size_calibrated=true` 明确记录已
 - 复杂箭头、图标化节点、带纹理或阴影的元素。
 - dashboard 或图表里的语义小图标、趋势图标、警告符号、状态符号。
 
-如果无法确定一个非文字元素是基础结构还是风格化视觉对象，默认用 `$imagegen` 重绘。
+可以用稀疏 asset sheet，但必须对账：
 
-但 `$imagegen` 不是“改样式”的许可。page worker 必须先建立 `visual_inventory`，再选择资产来源：
+- 切分出的资产数量覆盖 inventory。
+- 每个资产语义、颜色、形状和风格接近 source。
+- 不缺图标，不替换成同类但不同符号。
+- 对象之间不粘连、不互相投影。
 
-- 简单 primitive：直线、矩形、圆、普通箭头、表格线等，用 native shape。
-- 风格化但可重绘的视觉对象：用 `$imagegen` asset sheet，要求对象数量、顺序和语义与 inventory 一致。
-- 需要高度一致的小型源图视觉对象：如果无可读文字，且 imagegen 重绘会明显改变身份或丢失细节，可以裁为独立 `source-derived-rasterization` 资产。它必须是可移动的独立对象，并记录 `source_region_px` 或 `source_bbox_px`。
-- 承载可读文字的区域、整卡片、整表格、整图表、整页截图不能走 source-derived raster 来冒充可编辑化。
+## 7. Minimal Native Shapes
 
-asset sheet 生成后必须对账：
+native shape 只用于简单 primitive：
 
-- 切分出的资产数量必须覆盖 inventory 里所有必需视觉对象。
-- 每个资产命名要和 inventory 对应，不要把缺失图标写进 known limits 后直接通过。
-- 如果 generated asset 明显变样、少笔画、少 icon、变成别的符号，先局部重绘或改用合规的 source-derived raster asset。
+- 直线、虚线、折线。
+- 矩形、圆角矩形、圆形、椭圆。
+- 纯色卡片、面板、分隔线、边框。
+- 表格线、坐标轴、网格线。
+- 简单柱状块、进度条、状态色块。
 
-source-derived raster asset 的裁剪要求：
+复杂图标、插画、艺术字、纹理、照片、复杂图表视觉、复杂箭头不要用 native shape 或 SVG 硬拼。
 
-- 使用官方脚本裁剪，不要手写临时裁剪脚本。
-- crop box 必须覆盖完整对象并额外留安全边距，常见小图标至少 6-12 px。
-- 需要透明化时用 border background removal。透明化后可见像素贴到图片边缘时，先作为可疑信号复核 source/contact sheet；它不自动等同于裁断。
-- 只有在资产天然应该完整落在透明画布内、且 manifest 显式设置 `require_edge_safe_alpha: true` 时，validation 才把 visible pixels touch edge 作为硬失败。
+角形选择仍然要保守：
 
-## 5. 背景策略
+- `straight` 用 `rect`。
+- `small-radius`、`large-radius`、`pill` 用 `roundRect`，并估算 `source_corner_radius_px`。
+- 不确定时偏向 generated background 或 imagegen asset，不要用默认圆角 shape 猜。
 
-按成本递增选择：
+## 8. 禁止 SVG Fallback
 
-1. 原生 PPT 可重建：纯色、简单渐变、普通卡片、表格线、图表框。
-2. 确定性脚本可重建：可采样纯色、规则网格、简单重复模式。
-3. 已有背景可复用：没有烙印文字，也没有后续要独立重建的前景对象。
-4. `$imagegen` 修复：复杂背景被文字、图标、标签、贴纸、手写标记遮挡，移除后需要合理补全。
+不要在 manifest 中引用 `.svg` 作为复杂视觉资产。SVG 不能作为 “imagegen 不方便” 时的替代方案。
 
-clean base 不能包含后续会重建的文字或前景对象。否则会产生背景一份、可编辑对象一份的重复。
+如果一个对象无法用简单 native shape 表示，就用 `$imagegen`。如果 `$imagegen` 不可用，报告 blocker。
 
-复杂背景的首要目标是保留 source identity：
-
-- 对照片、空间、真实产品图、复杂 dashboard、插画，clean base 必须以 source 为 edit target 和强约束参考。
-- 遮挡少时，只修复被移除文字、标签、图标、贴纸遮住的局部区域；不要让 `$imagegen` 重新想象整张背景。
-- 如果遮挡区域很小，优先局部 inpainting 或小 patch；如果背景本身是纯色/规则形状，直接用脚本或 native shape 补齐。
-- 当前景覆盖较多、需要整张 clean base 时，可以用 `$imagegen` 重建背景图，但必须对照 source 保留原始构图、透视、物体位置、色彩、光照、材质和关键细节。目标是“去掉前景后的同一张背景”，不是同主题新图。
-- 整张 clean base 必须在 `background_strategy` 写 `mode: "imagegen-full-clean-base"`、`source_consistency_contract`、`removed_foreground` 和 `comparison_note`。
-- clean base prompt 只写“保留背景”不够；必须列出保留的 camera/perspective/layout/color/light/detail，以及只移除哪些前景。
-
-## 6. 层级
+## 9. 层级
 
 推荐 z-index：
 
-- clean background/base：0
-- native structural shapes：10-20
-- generated assets：30
+- generated clean background：0
+- minimal native structural shapes：10-20
+- generated picture assets：30
+- generated visual assets：35
+- generated art text assets：38
 - native editable text：40+
 
-## 7. Manifest
+## 10. Manifest 坐标
 
 页面 manifest 使用 source-image pixel coordinates：
 
@@ -119,18 +180,3 @@ clean base 不能包含后续会重建的文字或前景对象。否则会产生
 - `points_px: [x1, y1, x2, y2]`
 
 文本框要比源图字形边界更宽松，避免 PowerPoint/WPS/preview font metrics 导致裁切或错误换行。
-
-文字和装饰不要重复拆分：
-
-- 一个可读字的笔画必须只属于 native text box，不能再额外用 shape 画同一笔画。
-- 独立装饰线、分隔线、按钮下划线可以作为 shape，但必须确认它不是文字的一部分。
-- 如果拆分后 preview 出现多一个横杠、多一个点或重复符号，必须删除重复 shape。
-
-还必须包含：
-
-- `visual_inventory`
-- `background_strategy`
-- `quality_checks.font_size_calibrated`
-- `quality_checks.visual_inventory_matched`
-- `quality_checks.background_strategy_checked`
-- `quality_checks.shape_corner_geometry_checked`

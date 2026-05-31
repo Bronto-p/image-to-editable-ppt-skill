@@ -63,6 +63,8 @@ pending|dispatched|recorded|repair_needed
 
 不记录 `worker_returned` 状态。worker 返回是聊天态，不是文件态。只有 `record_page_result.py` 成功后，page 才算 `recorded`。
 
+`recorded` 还意味着 page worker 已经产出 imagegen-first 分层结果：`visual_layer_plan`、generated clean background、必要 generated assets、native editable text、manifest、preview、contact sheet 和 validation 都必须能被脚本校验。
+
 ## 并发兼容
 
 运行时可能限制同时存在的 subagent 数量。本 skill 不在脚本层实现 scheduler；主 agent 负责按批次 spawn。
@@ -98,6 +100,8 @@ planned
 - `processed`：`process_asset_sheet.py` 已完成去底、切分或裁剪。
 - `referenced`：`manifest.json` 已引用最终资产，validation 能找到 provenance。
 
+每个 imagegen job 应记录 intended layer，例如 `clean-background`、`picture-asset`、`art-text-asset`、`visual-asset` 或 `repair`。
+
 page worker 不能手写 `imagegen-jobs.json` 把 job 标成完成。
 
 ## blocker 与 repair_needed
@@ -110,5 +114,7 @@ page worker 不能手写 `imagegen-jobs.json` 把 job 标成完成。
 - 必需的 `$imagegen` 不可用。
 - 输入无法归一化。
 - repair 多次失败且没有可执行下一步。
+- generated background 或必需 generated visual asset 无法生成。
+- 只能通过 SVG/native shape 伪造复杂视觉才能继续。
 
 `blocked` 是停止信号，不是低保真完成结果。
