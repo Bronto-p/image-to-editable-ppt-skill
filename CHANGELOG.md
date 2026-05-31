@@ -4,6 +4,21 @@ Release notes are generated from this file. Keep changelog entries in English.
 
 ## Unreleased
 
+### Improvements
+
+- Refocus the repository and installable skill on imagegen-first layered reconstruction, with generated clean backgrounds, generated picture/art-text assets, and native editable main text.
+- Update page manifests, worker prompts, references, and validation contracts to require `visual_layer_plan` and imagegen visual-layer quality checks.
+
+### Fixes
+
+- Allow full-slide `imagegen-clean-background` images under native editable text while continuing to reject original source screenshots used as fake editable backgrounds.
+- Reject SVG assets as complex-visual fallbacks in validation.
+- Fix `.ppt` input normalization to pass the configured render DPI instead of referencing an out-of-scope CLI object.
+
+### Documentation
+
+- Rewrite the Chinese and English repository READMEs so install commands, badges, workflow, QA rules, limitations, and repository positioning match this fork's imagegen-first direction.
+
 ## 0.1.0
 
 ### Features

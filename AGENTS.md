@@ -9,6 +9,12 @@ This repository packages the `image-to-editable-ppt` skill.
 - Generated conversion outputs belong in `output/` and must not be committed.
 - Curated images or decks used by README/docs belong in `assets/`.
 
+## Product Direction
+
+- This fork is imagegen-first: generated clean backgrounds, generated picture/art-text/visual assets, and native editable main text are the default reconstruction strategy.
+- Do not reintroduce SVG or crude native-shape approximations as fallbacks for complex visuals.
+- Repository-level README, changelog, tests, and skill docs should stay aligned with the imagegen-first contract.
+
 ## Editing Rules
 
 - Do not edit files under `skills/image-to-editable-ppt/` unless the task explicitly asks to change the skill itself.
