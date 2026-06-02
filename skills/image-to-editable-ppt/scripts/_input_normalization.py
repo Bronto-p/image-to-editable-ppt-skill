@@ -266,6 +266,7 @@ def page_record(job_dir, page_index, source, input_path, source_page):
         "page_dir": rel_page_dir,
         "manifest": f"{rel_page_dir}/manifest.json",
         "validation": f"{rel_page_dir}/validation.json",
+        "qa_review": f"{rel_page_dir}/qa_review.json",
         "input": Path(input_path).name,
         "agent_status": "pending",
     }
@@ -284,7 +285,13 @@ def default_output_name(input_paths):
 
 def normalize_inputs(inputs, out_root="output/image-to-editable-ppt", job_dir=None, dpi=180):
     input_paths = [Path(path).resolve() for path in inputs]
-    job_dir = Path(job_dir).resolve() if job_dir else default_job_dir(out_root, input_paths).resolve()
+    if job_dir:
+        job_dir = Path(job_dir).expanduser()
+        if not job_dir.is_absolute():
+            job_dir = Path(out_root).expanduser() / job_dir
+        job_dir = job_dir.resolve()
+    else:
+        job_dir = default_job_dir(out_root, input_paths).resolve()
     input_dir = job_dir / "input"
     pages_dir = job_dir / "pages"
     input_dir.mkdir(parents=True, exist_ok=True)

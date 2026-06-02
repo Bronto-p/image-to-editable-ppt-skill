@@ -69,6 +69,7 @@
 
 - `preview.png` 必须存在。
 - `split_assets_contact.png` 必须存在，并展示 origin 与 preview 对比。
+- `qa_review.json` 必须存在，并记录 preview/contact sheet 检查结论、失败项和 QA note。
 - 视觉漂移、缺图片、缺艺术字、缺图标、低质量占位图、粗糙 native-shape 图标都应进入 repair。
 - 大容器角形、表格边界、卡片边框要和 source 对齐；圆角误判是 repair blocker，不是低风险 warning。
 

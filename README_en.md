@@ -42,7 +42,7 @@ It is not a full-slide screenshot wrapper, and it does not use SVG/native shapes
 - Allows a full-slide imagegen clean background as the bottom layer, while rejecting the fake-editable pattern of original `source.png` plus text overlays.
 - Rejects SVG as a complex-visual fallback; complex visuals must use `$imagegen` or the page reports a blocker.
 - Preserves `.pptx` speaker notes on matching output slides without modifying note text.
-- Requires manifest, visual layer plan, imagegen job records, preview, contact sheet, and validation artifacts for every page.
+- Requires manifest, visual layer plan, imagegen job records, preview, contact sheet, QA review, and validation artifacts for every page.
 
 ## Input And Output Contract
 
@@ -116,7 +116,7 @@ $image-to-editable-ppt convert /path/to/image-based.pptx into an editable PowerP
 The normal workflow is:
 
 1. Create an isolated job folder and normalize inputs into `pages/page_NNN/source.png`.
-2. Dispatch every page to a page subagent, including single-page inputs; batch multi-page runs by `max_concurrent_pages`.
+2. Dispatch every page to a page subagent, including single-page inputs; use a rolling worker pool to keep up to `max_concurrent_pages` active page workers.
 3. Create `visual_layer_plan` for every page, generate imagegen visual layers, and rebuild native editable text.
 4. Use state scripts to record dispatch, imagegen results, page results, repair, and accepted status.
 5. Assemble the final `.pptx`, copy `.pptx` speaker notes when present, and run deck validation.
@@ -148,6 +148,7 @@ output/image-to-editable-ppt/{job-id}/
     │   ├── split_assets_contact.png
     │   ├── manifest.json
     │   ├── validation.json
+    │   ├── qa_review.json
     │   └── page_result.json
     └── page_002/
         └── ...
@@ -159,6 +160,7 @@ output/image-to-editable-ppt/{job-id}/
 - `validate_pptx.py` rejects original `source.png` or source-derived/user raster full-slide backgrounds under native text.
 - `validate_pptx.py` rejects `.svg` as an imagegen-first complex visual asset.
 - Every page must record `visual_layer_plan`, `background_strategy`, `visual_inventory`, and imagegen visual-layer quality checks.
+- Every page must write `qa_review.json` with preview/contact sheet review conclusions, failures, and QA note.
 
 ## Repository Layout
 

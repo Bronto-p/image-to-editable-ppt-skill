@@ -37,6 +37,7 @@ ${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/SKILL.md
 - preview.png
 - split_assets_contact.png
 - validation.json
+- qa_review.json
 - page_result.json
 
 `page_result.json` 必须是 JSON，至少包含：
@@ -49,6 +50,7 @@ ${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/SKILL.md
   "preview": "preview.png",
   "contact_sheet": "split_assets_contact.png",
   "validation": "validation.json",
+  "qa_review": "qa_review.json",
   "page_result": "page_result.json",
   "qa_note": "one sentence",
   "known_limits": []
@@ -62,6 +64,7 @@ manifest.json 还必须包含：
 - `visual_inventory`: 非主文字视觉对象清单，至少记录 id、描述、分层类型、imagegen job 或 background 归属。
 - `background_strategy`: 背景处理方式、source-consistency 约束、移除的主文字/前景、保留的装饰小字/纹理、是否使用整张 imagegen clean background 以及原因。
 - `quality_checks`: `font_size_calibrated`、`visual_inventory_matched`、`background_strategy_checked`、`shape_corner_geometry_checked`、`imagegen_visual_layers_recorded`、`generated_background_checked`、`primary_text_removed_from_background` 都必须为 true。
+- `qa_review.json`: 记录 preview/contact sheet 视觉检查证据，至少包含 reviewed_assets、checks、failures 和 qa_note。
 
 生成规则：
 - Clean background 可以是一张 full-slide imagegen raster，放在 `images` 最底层，`z_index` 通常为 0。provenance 使用 `source_type: "imagegen-clean-background"` 或等价 imagegen 类型。
@@ -80,6 +83,7 @@ source-derived raster asset 是例外，不是默认策略。只有用户明确�
 - 从 manifest.json 构建 page.pptx
 - 渲染 preview.png
 - 创建 split_assets_contact.png
+- 写 qa_review.json
 - 运行 page validation
 - 检查 required outputs 都存在
 - 视觉检查 preview/contact sheet：生成背景像源页且无主文字残留，嵌入图片/艺术字/图标准确，native 主文字不重复、不缺失、字号不过大
@@ -91,6 +95,7 @@ page_pptx=<absolute path>
 preview=<absolute path>
 contact_sheet=<absolute path>
 validation=<absolute path>
+qa_review=<absolute path>
 page_result=<absolute path>
 qa_note=<one sentence>
 known_limits=<none or short list>

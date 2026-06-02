@@ -44,6 +44,7 @@ def page_request(run_dir, deck, page):
             "preview": str(page_dir / "preview.png"),
             "contact_sheet": str(page_dir / "split_assets_contact.png"),
             "validation": str(page_dir / "validation.json"),
+            "qa_review": str(page_dir / "qa_review.json"),
             "page_result": str(page_dir / "page_result.json"),
         },
     }
@@ -78,6 +79,7 @@ def write_page_jobs(run_dir, deck):
                 "page_request": rel_to_run(run_dir, request_path),
                 "manifest": page["manifest"],
                 "validation": page["validation"],
+                "qa_review": page["qa_review"],
                 "dispatch": None,
                 "result": None,
                 "repair": [],
@@ -109,6 +111,7 @@ def upgrade_deck_manifest(deck_path, max_concurrent_pages):
         page["page_id"] = page_id
         page["status"] = "pending"
         page["page_request"] = f"{page['page_dir']}/page_request.json"
+        page["qa_review"] = f"{page['page_dir']}/qa_review.json"
         page["dispatch"] = None
         page["result"] = None
         page["repair"] = []

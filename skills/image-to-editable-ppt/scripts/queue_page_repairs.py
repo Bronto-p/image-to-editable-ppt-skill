@@ -4,6 +4,28 @@ import argparse
 from deck_run_state import find_page, load_jobs, now_iso, read_json, run_dir_from_target, save_jobs, write_json
 
 
+FAILURE_TYPES = {
+    "missing_text",
+    "clipped_text",
+    "wrong_text_wrapping",
+    "missing_asset",
+    "bad_asset_split",
+    "bad_generated_background",
+    "primary_text_left_in_background",
+    "bad_generated_picture_asset",
+    "bad_art_text_asset",
+    "bad_asset_provenance",
+    "layout_drift",
+    "broken_pptx",
+    "notes_mismatch",
+    "imagegen_blocked",
+    "svg_fallback_used",
+    "native_shape_complex_visual",
+    "validation_failed",
+    "qa_failed",
+}
+
+
 def next_repair_id(queue, page_id):
     return f"repair_{len(queue.get('items', [])) + 1:03d}_{page_id}"
 
@@ -18,12 +40,16 @@ def validation_failed(run_dir, page):
         return True
 
 
-def add_item(queue, page, reason, evidence):
+def add_item(queue, page, args, evidence):
     item = {
         "repair_item_id": next_repair_id(queue, page["page_id"]),
         "page_id": page["page_id"],
-        "reason": reason,
+        "failure_type": args.failure_type,
+        "reason": args.reason,
         "evidence": evidence,
+        "suggested_scope": args.suggested_scope,
+        "required_output": args.required_output,
+        "previous_attempt_summary": args.previous_attempt_summary,
         "status": "queued",
         "created_at": now_iso(),
     }
@@ -39,6 +65,10 @@ def main():
     parser.add_argument("--page", action="append", help="page_001 or 1; may be repeated")
     parser.add_argument("--from-validation", action="store_true")
     parser.add_argument("--reason", default="page validation or QA requires repair")
+    parser.add_argument("--failure-type", default="validation_failed", choices=sorted(FAILURE_TYPES))
+    parser.add_argument("--suggested-scope", default="smallest failing page-local element or generated asset")
+    parser.add_argument("--required-output", default="updated manifest, page.pptx, preview, contact sheet, validation, qa_review, page_result")
+    parser.add_argument("--previous-attempt-summary", default="See page_result.json, validation.json, qa_review.json, preview.png, and split_assets_contact.png.")
     parser.add_argument("--evidence", action="append", default=[])
     args = parser.parse_args()
 
@@ -65,7 +95,9 @@ def main():
         evidence = list(args.evidence)
         if not evidence:
             evidence.append(page.get("validation"))
-        created.append(add_item(queue, page, args.reason, evidence))
+            evidence.append(page.get("result", {}).get("outputs", {}).get("qa_review") or f"{page.get('page_dir')}/qa_review.json")
+        evidence = [item for item in evidence if item]
+        created.append(add_item(queue, page, args, evidence))
 
     queue["updated_at"] = now_iso()
     write_json(queue_path, queue)

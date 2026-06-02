@@ -1,5 +1,19 @@
 # 页面分层决策树
 
+## 目录
+
+- 目标
+- 1. 建立 Visual Layer Plan
+- 2. 主文字
+- 3. Generated Clean Background
+- 4. Generated Picture Assets
+- 5. Art Text Assets
+- 6. Generated Visual Assets
+- 7. Minimal Native Shapes
+- 8. 禁止 SVG Fallback
+- 9. 层级
+- 10. Manifest 坐标
+
 ## 目标
 
 页面重建采用 imagegen-first layered reconstruction：

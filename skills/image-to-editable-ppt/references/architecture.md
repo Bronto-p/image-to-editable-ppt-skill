@@ -1,5 +1,13 @@
 # 架构与职责边界
 
+## 目录
+
+- 目标
+- 角色分工
+- Run 目录
+- Page 目录
+- Owner 原则
+
 ## 目标
 
 这个 skill 的架构目标是让图片/PDF/图片版 PPTX 到可编辑 PPTX 的流程稳定、可复现、可审计、可局部返工。
@@ -21,9 +29,9 @@
 
 - 运行 `prepare_deck_run.py`。
 - 读取 `page_job_status.py` 输出。
-- 为每个 page spawn 一个 page subagent。
+- 用 rolling worker pool 为每个 page spawn 一个 page subagent，始终尽量填满 `max_concurrent_pages`。
 - 用 `record_page_dispatch.py` 记录 dispatch。
-- 用 `record_page_result.py` 记录 page worker 返回结果。
+- 用 `record_page_result.py` 记录 page worker 返回结果，并在每次记录后立刻补充新的可分派 worker。
 - 运行 repair queue。
 - 运行 `finalize_deck_run.py`。
 - 向用户报告进度、最终路径、QA 结果和 blocker。

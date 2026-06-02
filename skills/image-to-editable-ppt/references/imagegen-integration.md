@@ -1,5 +1,17 @@
 # `$imagegen` / GPT Image 2 集成
 
+## 目录
+
+- 入口
+- Imagegen-First 原则
+- 本地图片角色
+- Clean Background
+- Embedded Picture Reconstruction
+- Art Text
+- Visual Asset Sheet
+- 结果记录
+- 失败处理
+
 ## 入口
 
 所有图片生成、图片编辑、背景修复、嵌入图片重建、艺术字、透明 bitmap 和 asset sheet 都必须使用 `$imagegen`。

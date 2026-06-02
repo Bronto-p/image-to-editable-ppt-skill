@@ -42,7 +42,7 @@
 - 允许 full-slide imagegen clean background 作为底层，但拒绝原始 `source.png` 整页截图加文字覆盖的假可编辑模式。
 - 禁止用 SVG 作为复杂视觉 fallback；复杂视觉必须走 `$imagegen`，否则报告 blocker。
 - `.pptx` 输入的页面备注会复制到输出对应页，备注内容不改动。
-- 每页必须留下 manifest、visual layer plan、imagegen job 记录、preview、contact sheet 和 validation，便于检查和返工。
+- 每页必须留下 manifest、visual layer plan、imagegen job 记录、preview、contact sheet、qa review 和 validation，便于检查和返工。
 
 ## 输入与输出契约
 
@@ -116,7 +116,7 @@ $image-to-editable-ppt 把 /path/to/image-based.pptx 转成可编辑 PPT。
 skill 通常会完成这些步骤：
 
 1. 创建独立任务目录，并把输入归一化为 `pages/page_NNN/source.png`。
-2. 每一页都分配给 page subagent，包括单页输入；多页输入按 `max_concurrent_pages` 分批分派。
+2. 每一页都分配给 page subagent，包括单页输入；多页输入用 rolling worker pool 按 `max_concurrent_pages` 持续补位分派。
 3. 每页创建 `visual_layer_plan`，生成 imagegen 视觉层，重建 native editable text。
 4. 用状态脚本记录 dispatch、imagegen result、page result、repair 和 accepted 状态。
 5. 主 agent 组装最终 `.pptx`，复制 `.pptx` 页面备注，并运行 deck validation。
@@ -148,6 +148,7 @@ output/image-to-editable-ppt/{job-id}/
     │   ├── split_assets_contact.png
     │   ├── manifest.json
     │   ├── validation.json
+    │   ├── qa_review.json
     │   └── page_result.json
     └── page_002/
         └── ...
@@ -159,6 +160,7 @@ output/image-to-editable-ppt/{job-id}/
 - `validate_pptx.py` 拒绝原始 `source.png` 或 source-derived/user raster 整页底图叠 native text。
 - `validate_pptx.py` 拒绝 `.svg` 作为 imagegen-first 复杂视觉资产。
 - 每页必须记录 `visual_layer_plan`、`background_strategy`、`visual_inventory` 和 imagegen visual layer quality checks。
+- 每页必须写入 `qa_review.json`，记录 preview/contact sheet 检查结论、失败项和 QA note。
 
 ## 仓库结构
 

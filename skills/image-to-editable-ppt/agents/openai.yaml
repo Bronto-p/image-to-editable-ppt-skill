@@ -1,4 +1,4 @@
 interface:
   display_name: "Image to Editable PPT"
-  short_description: "用图片生成分层重建图片/PDF/PPTX 为高保真可编辑 PPTX"
-  default_prompt: "使用 $image-to-editable-ppt 将输入重建成高保真可编辑 PowerPoint。每页分派 page subagent，默认用 $imagegen / GPT Image 2 生成 clean background、嵌入图片、艺术字和复杂视觉资产，只把主文字做成 native editable text，并按 manifest、preview、contact sheet 和 validation 完成检查。"
+  short_description: "Convert slide images/PDF/image-based PPTX into high-fidelity editable PowerPoint"
+  default_prompt: "使用 $image-to-editable-ppt 将输入重建成高保真可编辑 PowerPoint。Run runtime doctor first, then prepare the deck run, dispatch each page to a page subagent, use $imagegen / GPT Image 2 for clean backgrounds and complex visual assets, keep main text as native editable text, preserve speaker notes, and complete manifest, preview, contact sheet, qa_review, validation, and final PPTX checks."

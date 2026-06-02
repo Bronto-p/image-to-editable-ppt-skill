@@ -25,6 +25,7 @@ REQUIRED_OUTPUTS = {
     "preview": "preview.png",
     "contact_sheet": "split_assets_contact.png",
     "validation": "validation.json",
+    "qa_review": "qa_review.json",
     "page_result": "page_result.json",
 }
 

@@ -1,5 +1,14 @@
 # Subagent 契约
 
+## 目录
+
+- 基本原则
+- Page worker 输入
+- Page worker 禁止事项
+- Page worker 输出
+- Repair worker
+- Dispatch 记录
+
 ## 基本原则
 
 - 每个来源页面必须分派给一个 page subagent。
@@ -10,6 +19,7 @@
 - page subagent 默认用 `$imagegen` / GPT Image 2 生成 clean background、嵌入图片、艺术字、图标和复杂视觉资产。
 - page subagent 必须自己 build、preview、contact sheet、validate。
 - 子 agent 不可用时停止，不顺序执行。
+- 主 agent 必须以 rolling worker pool 调度 page/repair subagent：先填满 `max_concurrent_pages`，任意 worker 被 `record_page_result.py` 记录后立刻补充新 worker，不等待整批完成。
 
 ## Page worker 输入
 
@@ -53,6 +63,7 @@ page.pptx
 preview.png
 split_assets_contact.png
 validation.json
+qa_review.json
 page_result.json
 ```
 
@@ -66,13 +77,14 @@ page_result.json
   "preview": "preview.png",
   "contact_sheet": "split_assets_contact.png",
   "validation": "validation.json",
+  "qa_review": "qa_review.json",
   "page_result": "page_result.json",
   "qa_note": "one sentence",
   "known_limits": []
 }
 ```
 
-`manifest.json` 必须包含 `visual_layer_plan`、`background_strategy`、`visual_inventory`、`quality_checks`。`quality_checks` 必须明确记录 imagegen 视觉层、generated background 和主文字去除检查。
+`manifest.json` 必须包含 `visual_layer_plan`、`background_strategy`、`visual_inventory`、`quality_checks`。`quality_checks` 必须明确记录 imagegen 视觉层、generated background 和主文字去除检查。`qa_review.json` 必须记录 preview/contact sheet 检查证据。
 
 返回格式：
 
@@ -82,6 +94,7 @@ page_pptx=/absolute/path/to/pages/page_001/page.pptx
 preview=/absolute/path/to/pages/page_001/preview.png
 contact_sheet=/absolute/path/to/pages/page_001/split_assets_contact.png
 validation=/absolute/path/to/pages/page_001/validation.json
+qa_review=/absolute/path/to/pages/page_001/qa_review.json
 page_result=/absolute/path/to/pages/page_001/page_result.json
 qa_note=<one sentence>
 known_limits=<none or short list>
@@ -114,3 +127,5 @@ repair worker 不应重建整页，除非 repair item 明确说明整页 manifes
 - repair item id，如果是 repair dispatch
 
 没有 dispatch 记录的 page result，`record_page_result.py` 应拒绝。
+
+调度补位必须以 `page_job_status.py` 的 `next_dispatch_pages` 为准。`dispatch_slots_available>0` 且 `next_dispatch_pages` 非空时，如果主 agent 不能继续 spawn worker，应报告 blocker，而不是降低并发或自己重建页面。

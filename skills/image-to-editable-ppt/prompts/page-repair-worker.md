@@ -33,15 +33,16 @@ ${CODEX_HOME:-$HOME/.codex}/skills/.system/imagegen/SKILL.md
 - `missing_asset`: 生成缺失的视觉对象并更新 manifest/provenance。
 - `clipped_text` / `wrong_text_wrapping`: 修改 native text box、字号或行距，不重做视觉层。
 
-完成后必须重新生成或更新：
+完成后必须重新生成或更新，并且 `qa_review.json` 要在重新运行 validation 前写好：
 - manifest.json
 - page.pptx
 - preview.png
 - split_assets_contact.png
 - validation.json
+- qa_review.json
 - page_result.json
 
-`page_result.json` 必须是 JSON，字段与 page worker 相同，路径必须指向当前 Page dir 内的文件。
+`qa_review.json` 必须重新记录本次 repair 后的 preview/contact sheet 检查。`page_result.json` 必须是 JSON，字段与 page worker 相同，路径必须指向当前 Page dir 内的文件。
 
 只返回：
 page_manifest=<absolute path>
@@ -49,6 +50,7 @@ page_pptx=<absolute path>
 preview=<absolute path>
 contact_sheet=<absolute path>
 validation=<absolute path>
+qa_review=<absolute path>
 page_result=<absolute path>
 qa_note=<one sentence>
 known_limits=<none or short list>

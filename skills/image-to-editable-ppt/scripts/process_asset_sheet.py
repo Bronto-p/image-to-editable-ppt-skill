@@ -13,6 +13,10 @@ def mark_processed(page_dir, args, crop_output=None):
     jobs = read_json(jobs_path, default={"schema_version": 1, "jobs": []})
     for item in jobs.get("jobs", []):
         if item.get("job_id") == args.job_id:
+            if item.get("status") not in {"recorded", "processed"}:
+                raise SystemExit(
+                    f"Imagegen job {args.job_id} must be recorded before processing; got {item.get('status')}"
+                )
             item.update(
                 {
                     "status": "processed",
@@ -25,18 +29,7 @@ def mark_processed(page_dir, args, crop_output=None):
             )
             break
     else:
-        jobs.setdefault("jobs", []).append(
-            {
-                "job_id": args.job_id,
-                "role": "asset_sheet",
-                "status": "processed",
-                "processed_at": now_iso(),
-                "alpha": args.alpha,
-                "assets_dir": args.assets_dir,
-                "split_manifest": args.split_manifest,
-                "crop_output": crop_output,
-            }
-        )
+        raise SystemExit(f"Imagegen job {args.job_id} does not exist; record it before processing")
     jobs["updated_at"] = now_iso()
     write_json(jobs_path, jobs)
 

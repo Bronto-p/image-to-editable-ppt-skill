@@ -1,5 +1,16 @@
 # Manifest Schema 第一版
 
+## 目录
+
+- `deck_manifest.json`
+- `page_jobs.json`
+- `page_request.json`
+- `page_result.json`
+- `pages/page_NNN/manifest.json`
+- `pages/page_NNN/imagegen-jobs.json`
+- `pages/page_NNN/qa_review.json`
+- `notes_manifest.json`
+
 本文件描述 JSON 文件职责和 owner。字段会随脚本实现细化。
 
 ## `deck_manifest.json`
@@ -101,6 +112,7 @@ Owner：page worker 创建，`record_page_result.py` 校验。
 - qa note
 - known limits
 - page-local output hashes，可由 record 脚本补充
+- qa review path
 
 ## `pages/page_NNN/manifest.json`
 
@@ -292,6 +304,38 @@ Owner：page-local imagegen 脚本。
 - source type
 - sha256
 - model/tool when available
+- metadata
+
+如果带 `job_id` 调用处理脚本，job 必须已经由 `record_imagegen_result.py` 记录为 `recorded`；不要从缺失 job 直接跳到 `processed`。
+
+## `pages/page_NNN/qa_review.json`
+
+Owner：page worker 或 repair worker 创建，`record_page_result.py` 校验存在。
+
+用途：
+
+- 记录人工/agent 视觉 QA 证据，而不是只在 `quality_checks` 里写 true。
+- 保存 preview/contact sheet 检查结论。
+- 为 repair queue 提供 failure type、evidence、suggested scope 和 previous attempt summary。
+
+推荐结构：
+
+```json
+{
+  "schema_version": 1,
+  "page_id": "page_001",
+  "reviewed_assets": ["preview.png", "split_assets_contact.png"],
+  "checks": {
+    "visual_layer_matches_source": true,
+    "primary_text_not_duplicated": true,
+    "editable_text_present": true,
+    "generated_assets_accounted_for": true,
+    "background_identity_preserved": true
+  },
+  "failures": [],
+  "qa_note": "Preview and contact sheet checked against source."
+}
+```
 
 ## `notes_manifest.json`
 

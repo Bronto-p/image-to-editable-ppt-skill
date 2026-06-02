@@ -3,8 +3,11 @@ import argparse
 from pathlib import Path
 
 from deck_run_state import (
+    active_pages,
+    dispatch_slots_available,
     find_page,
     load_jobs,
+    max_concurrent_pages,
     now_iso,
     page_dir_for,
     rel_to_run,
@@ -46,6 +49,13 @@ def main():
         if page.get("status") != "pending":
             raise SystemExit(f"{page['page_id']} must be pending before dispatch; got {page.get('status')}")
         next_status = "dispatched"
+
+    if dispatch_slots_available(jobs) <= 0:
+        active = ", ".join(page.get("page_id") for page in active_pages(jobs)) or "-"
+        raise SystemExit(
+            f"No dispatch slots available for {page['page_id']}; "
+            f"max_concurrent_pages={max_concurrent_pages(jobs)} active_dispatches={active}"
+        )
 
     page_request = (run_dir / page["page_request"]).resolve()
     if not page_request.exists():

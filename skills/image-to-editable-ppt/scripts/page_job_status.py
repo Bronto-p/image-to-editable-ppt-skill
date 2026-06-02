@@ -34,6 +34,9 @@ def main():
         "active_dispatches": [page.get("page_id") for page in active_pages(jobs)],
         "dispatch_slots_available": dispatch_slots_available(jobs),
         "dispatchable_pages": [page.get("page_id") for page in dispatchable_pages(jobs)],
+        "next_dispatch_pages": [
+            page.get("page_id") for page in dispatchable_pages(jobs)[: dispatch_slots_available(jobs)]
+        ],
         "counts": dict(Counter(page.get("status", "unknown") for page in jobs.get("pages", []))),
         "pages": dict(sorted(by_status.items())),
     }
@@ -46,6 +49,7 @@ def main():
     print(f"active_dispatches={', '.join(summary['active_dispatches']) if summary['active_dispatches'] else '-'}")
     print(f"dispatch_slots_available={summary['dispatch_slots_available']}")
     print(f"dispatchable_pages={', '.join(summary['dispatchable_pages']) if summary['dispatchable_pages'] else '-'}")
+    print(f"next_dispatch_pages={', '.join(summary['next_dispatch_pages']) if summary['next_dispatch_pages'] else '-'}")
     for status, pages in summary["pages"].items():
         print(f"{status}: {', '.join(pages) if pages else '-'}")
 

@@ -347,6 +347,7 @@ def validate_deck(args):
         "slides": 0,
         "page_manifests_missing": [],
         "page_validation_missing": [],
+        "page_qa_review_missing": [],
         "failed_page_validations": [],
         "page_contract_violations": [],
         "notes_expected": len(notes_manifest.get("notes", [])),
@@ -360,10 +361,15 @@ def validate_deck(args):
     for page in deck.get("pages", []):
         manifest_path = Path(page.get("manifest", ""))
         validation_path = Path(page.get("validation", ""))
+        qa_review_path = Path(page.get("qa_review", ""))
         if not manifest_path.is_absolute():
             manifest_path = root / manifest_path
         if not validation_path.is_absolute():
             validation_path = root / validation_path
+        if not qa_review_path:
+            qa_review_path = manifest_path.parent / "qa_review.json"
+        elif not qa_review_path.is_absolute():
+            qa_review_path = root / qa_review_path
         if not manifest_path.exists():
             report["page_manifests_missing"].append(str(manifest_path))
         else:
@@ -389,6 +395,8 @@ def validate_deck(args):
                     report["failed_page_validations"].append(str(validation_path))
             except Exception as exc:
                 report["failed_page_validations"].append(f"{validation_path}: {exc}")
+        if not qa_review_path.exists():
+            report["page_qa_review_missing"].append(str(qa_review_path))
 
     try:
         with zipfile.ZipFile(args.pptx) as z:
@@ -414,6 +422,7 @@ def validate_deck(args):
         report["slides"] == expected_pages
         and not report["page_manifests_missing"]
         and not report["page_validation_missing"]
+        and not report["page_qa_review_missing"]
         and not report["failed_page_validations"]
         and not report["page_contract_violations"]
         and not report["missing_parts"]
@@ -506,6 +515,7 @@ def main():
         "missing_relationship_targets": [],
         "missing_asset_provenance": [],
         "missing_manifest_images": [],
+        "missing_qa_review": [],
         "missing_provenance_sources": [],
         "invalid_asset_provenance": [],
         "media_hash_mismatches": [],
@@ -659,6 +669,10 @@ def main():
             for problem in alpha_edge_violations(asset_file):
                 report["invalid_asset_provenance"].append({"path": key, **problem})
 
+    qa_review_path = manifest_base / "qa_review.json"
+    if not qa_review_path.exists():
+        report["missing_qa_review"].append(str(qa_review_path))
+
     report["page_contract_violations"] = (
         authoring_violations + page_contract_violations(manifest) + quality_contract_violations(raw_manifest)
     )
@@ -673,6 +687,7 @@ def main():
         and not report["missing_required_text"]
         and not report["missing_asset_provenance"]
         and not report["missing_manifest_images"]
+        and not report["missing_qa_review"]
         and not report["missing_provenance_sources"]
         and not report["invalid_asset_provenance"]
         and not report["page_contract_violations"]

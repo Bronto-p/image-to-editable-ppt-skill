@@ -1,6 +1,6 @@
 ---
 name: image-to-editable-ppt
-description: 当用户提供一张或多张幻灯片图片、图片版 PPT/PPTX 或 PDF，并要求转成高保真可编辑 PowerPoint/PPTX、用图片生成重建视觉层、保留页面备注、重建主文字或做可编辑化复刻时使用。
+description: 当用户提供一张或多张幻灯片图片、图片版 PPT/PPTX 或 PDF，并要求转成高保真可编辑 PowerPoint/PPTX、用图片生成重建视觉层、保留页面备注、重建主文字或做可编辑化复刻时使用。Use when converting slide screenshots, images, PDFs, or image-based PowerPoint/PPTX files into high-fidelity editable PowerPoint decks with imagegen visual layers, native editable main text, preserved speaker notes, manifest validation, and page-level reconstruction workers.
 ---
 # Image to Editable PPT
 
@@ -43,7 +43,7 @@ description: 当用户提供一张或多张幻灯片图片、图片版 PPT/PPTX 
 完成条件：
 
 - `准备输入和任务目录`：`deck_manifest.json`、`page_jobs.json`、`pages/page_NNN/source.png`、`notes_manifest.json` 已存在。
-- `分派页面重建`：主 agent 按 `max_concurrent_pages` 分批 spawn page subagent；每个已 spawn page 都由 `record_page_dispatch.py` 记录为 dispatched。如果不能继续 spawn subagent，停在这里并报告 blocker。
+- `分派页面重建`：主 agent 运行一个 rolling worker pool，始终尽量填满 `max_concurrent_pages` 个 active page subagent；每个已 spawn page 都由 `record_page_dispatch.py` 记录为 dispatched。如果有可用 slot 但不能继续 spawn subagent，停在这里并报告 blocker。
 - `生成页面视觉层和可编辑文字`：每个 page 都由 page worker 产出 `visual_layer_plan`、`manifest.json`、`page.pptx`、`preview.png`、`split_assets_contact.png`、`validation.json`、`page_result.json`。
 - `检查并修复页面`：所有 page 通过 `record_page_result.py` 记录，repair queue 清空；无法修复时报告 blocker。
 - `组装和验证 PPTX`：`final/<origin>_edited.pptx` 和 `final/validation.json` 已存在。
@@ -52,17 +52,20 @@ description: 当用户提供一张或多张幻灯片图片、图片版 PPT/PPTX 
 
 ## Default Workflow
 
-1. 运行 `prepare_deck_run.py` 创建 run 目录、归一化输入、生成 deck/page manifest 和 page request。
-2. 运行 `page_job_status.py` 查看待分派页面、active dispatches 和可用 dispatch slot。
-3. 主 agent 按 `max_concurrent_pages` 分批 spawn 普通 Codex worker subagent；不要一次性 spawn 超过运行时并发上限。
-4. spawn 后立即运行 `record_page_dispatch.py` 记录 dispatch。
-5. 每个 page worker 只在自己的 page 目录内工作，完成分层计划、imagegen 视觉层、可编辑文字、page-level build、preview、contact sheet、validation。
-6. page worker 返回后，主 agent 运行 `record_page_result.py` 检查文件、路径和 hash，并推进 page 状态。
-7. 再次运行 `page_job_status.py`；如果还有 pending/repair_needed page，就继续下一批分派。
-8. 如有页面问题，运行 `queue_page_repairs.py` 生成 repair item，再分批分派 repair worker。
-9. 所有 page accepted 后，运行 `finalize_deck_run.py` 组装最终 PPTX、复制 notes、运行 deck validation 和 QA summary。
+1. 运行 `image_to_editable_ppt_runtime.py doctor`。如果 skill-local `.venv` 缺失，先运行 `image_to_editable_ppt_runtime.py bootstrap`，再重新 doctor。
+2. 确认当前 runtime 能 spawn page subagent，并且 `$imagegen` / built-in `image_gen` 可用；任一不可用都报告 blocker，不进入页面重建。
+3. 运行 `prepare_deck_run.py` 创建 run 目录、归一化输入、生成 deck/page manifest 和 page request。
+4. 运行 `page_job_status.py` 查看待分派页面、active dispatches、可用 dispatch slot 和 `next_dispatch_pages`。
+5. 主 agent 按 `next_dispatch_pages` spawn 普通 Codex worker subagent，直到本轮 slot 填满；不要一次性 spawn 超过运行时并发上限。
+6. spawn 后立即运行 `record_page_dispatch.py` 记录 dispatch。
+7. 每个 page worker 只在自己的 page 目录内工作，完成分层计划、imagegen 视觉层、可编辑文字、page-level build、preview、contact sheet、validation。
+8. 任意 page worker 返回后，主 agent 立即运行 `record_page_result.py` 检查文件、路径和 hash，并推进 page 状态；不要等同一轮所有 worker 都返回。
+9. 每次记录一个结果后都立即运行 `page_job_status.py`；只要 `next_dispatch_pages` 非空，就立刻 spawn 新 worker 补满空出的 slot。
+10. 如有页面问题，运行 `queue_page_repairs.py` 生成 repair item，再用同一个 rolling worker pool 分派 repair worker。
+11. 所有 page accepted 后，运行 `finalize_deck_run.py` 组装最终 PPTX、复制 notes、运行 deck validation 和 QA summary。
 
 正常主入口是 `prepare_deck_run.py`。不再保留旧输入归一化脚本作为公开入口或兼容 wrapper。
+详细规则以 reference 为 source of truth；prompt 模板只是执行 checklist，修改规则时优先更新 references，再同步 prompt 中的必要摘要。
 
 ## Generation Delegation
 
@@ -99,6 +102,14 @@ page subagent 是唯一的页面重建执行者。主 agent 不重建页面。
 
 page worker prompt 模板在 `prompts/page-worker.md`。
 
+调度规则：
+
+- 把 `max_concurrent_pages` 当作目标池大小，而不是一次性批大小。
+- 每次调用 `page_job_status.py` 后，只分派 `next_dispatch_pages` 列出的 page。
+- 初始调度必须连续 spawn 到 `dispatch_slots_available=0` 或没有 `next_dispatch_pages`。
+- 任意 worker 返回并由 `record_page_result.py` 成功记录后，必须马上重新运行 `page_job_status.py` 并补一个新 worker；不要等待其他 active worker 完成。
+- 如果 `dispatch_slots_available>0` 且 `next_dispatch_pages` 非空，但 runtime 无法 spawn worker，立即停止并报告 blocker。
+
 如果无法 spawn page subagent，停止并报告 blocker。不要顺序执行页面重建。
 
 ## Rules
@@ -111,7 +122,7 @@ page worker prompt 模板在 `prompts/page-worker.md`。
 - 字号：先根据 source 字形高度、容器高度和同行密度估算，再用 preview 对照缩放；不确定时偏小而不是偏大。manifest 必须记录 `quality_checks.font_size_calibrated=true`。
 - 结构：native shape 只用于确实简单且不会影响视觉保真的 primitive，例如直线、矩形、圆形、表格线、坐标轴和基础容器。复杂视觉不要用 SVG 或 native shape 硬拼。
 - provenance：每个最终 raster asset 都必须有来源记录，优先记录 imagegen prompt、输入图角色、输出路径和 hash。
-- QA：确定性 validation 必要但不充分。必须检查 `preview.png` 和 `split_assets_contact.png`，重点看视觉层是否像源页、主文字是否重复/缺失、艺术字和嵌入图片是否准确。
+- QA：确定性 validation 必要但不充分。必须检查 `preview.png` 和 `split_assets_contact.png`，写入 `qa_review.json`，重点看视觉层是否像源页、主文字是否重复/缺失、艺术字和嵌入图片是否准确。
 - repair：修最小失败范围。不要为了一个文本框或一个图标重建整页；但如果 clean background 与源页漂移明显，应重做该背景。
 - 状态：`page_jobs.json`、`imagegen-jobs.json` 的关键状态必须由脚本推进。
 
@@ -120,7 +131,7 @@ page worker prompt 模板在 `prompts/page-worker.md`。
 - 输出是有效 `.pptx`。
 - 单图输出 1 页；多图每图 1 页；PDF 第 N 页对应输出第 N 页；PPT/PPTX 第 N 页对应输出第 N 页。
 - PPT/PPTX speaker notes 按页原样复制，不翻译、不摘要、不交给 page worker 改写。
-- 每页有 `visual_layer_plan`、`manifest.json`、`page.pptx`、`preview.png`、`split_assets_contact.png`、`validation.json`、`page_result.json`。
+- 每页有 `visual_layer_plan`、`manifest.json`、`page.pptx`、`preview.png`、`split_assets_contact.png`、`validation.json`、`qa_review.json`、`page_result.json`。
 - 每页 source image size、主文字清单、视觉分层计划、generated background、generated assets、asset provenance、known limits 都有记录。
 - 每个 page 都由 `record_page_dispatch.py` 记录 dispatch，并由 `record_page_result.py` 记录结果。
 - 最终 deck 有 `final/<origin>_edited.pptx` 和 `final/validation.json`。
@@ -142,3 +153,4 @@ page worker prompt 模板在 `prompts/page-worker.md`。
 - `prompts/imagegen-clean-base.md`：clean background 生成/编辑 prompt。
 - `prompts/imagegen-asset-sheet.md`：图片、艺术字和视觉资产生成 prompt。
 - `prompts/imagegen-repair.md`：targeted imagegen repair prompt。
+- `scripts/smoke_test.py`：不调用 imagegen 的 deterministic pipeline smoke test，用于验证 prepare/status/dispatch/result/finalize 脚本链路。

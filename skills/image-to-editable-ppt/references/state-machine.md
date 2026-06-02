@@ -1,5 +1,13 @@
 # 状态机
 
+## 目录
+
+- Run-level 状态
+- Page-level 状态
+- 并发兼容
+- Imagegen job 状态
+- blocker 与 repair_needed
+
 关键状态只能由脚本推进。聊天里的“完成了”不算状态。
 
 ## Run-level 状态
@@ -67,7 +75,7 @@ pending|dispatched|recorded|repair_needed
 
 ## 并发兼容
 
-运行时可能限制同时存在的 subagent 数量。本 skill 不在脚本层实现 scheduler；主 agent 负责按批次 spawn。
+运行时可能限制同时存在的 subagent 数量。本 skill 不在脚本层实现 scheduler；主 agent 负责维护 rolling worker pool。
 
 `prepare_deck_run.py` 写入 `max_concurrent_pages`，默认值为 4。`page_job_status.py` 只读输出：
 
@@ -75,10 +83,11 @@ pending|dispatched|recorded|repair_needed
 - `active_dispatches`
 - `dispatch_slots_available`
 - `dispatchable_pages`
+- `next_dispatch_pages`
 
-主 agent 每轮最多 spawn `dispatch_slots_available` 个 page worker。worker 返回并由 `record_page_result.py` 记录后，再运行 `page_job_status.py` 开下一批。
+主 agent 每次最多 spawn `next_dispatch_pages` 列出的 page worker。初始分派要填满所有可用 slot；任意 worker 返回并由 `record_page_result.py` 记录后，必须立即运行 `page_job_status.py`，如果 `next_dispatch_pages` 非空就立刻补充 worker，不等待其他 active worker。
 
-`record_page_dispatch.py` 只记录已经 spawn 的 worker，不假装控制真实并发。
+`record_page_dispatch.py` 只记录已经 spawn 的 worker，不假装控制真实并发；但它会拒绝在 `dispatch_slots_available=0` 时记录新的 dispatch，防止主 agent 超过 `max_concurrent_pages`。
 
 ## Imagegen job 状态
 
